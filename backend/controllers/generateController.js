@@ -23,11 +23,14 @@ const generateImage = async (req, res) => {
     const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '4:3' ? 768 : 1024;
     const height = aspectRatio === '16:9' ? 576 : aspectRatio === '4:3' ? 1024 : 1024;
     
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?seed=${seed}&width=${width}&height=${height}&nologo=true`;
-    
+    // const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?seed=${seed}&width=${width}&height=${height}&nologo=true`;
+    const queryKeywords = encodeURIComponent(finalPrompt.split(',')[0].trim());
+    // const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
+    const imageUrl = `https://source.unsplash.com/featured/${width}x${height}?${queryKeywords}`;
     const response = await fetch(imageUrl);
     
     if (!response.ok) {
+      console.error(`External API Failed with Status: ${response.status}`);
       return res.status(500).json({ message: 'Failed to generate image from AI provider.' });
     }
 
