@@ -27,8 +27,7 @@ const generateImage = async (req, res) => {
     const queryKeywords = encodeURIComponent(finalPrompt.split(',')[0].trim());
     // const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
     // Use the reliable static Unsplash photo URL to avoid the deprecated source domain
-    const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
-    const response = await fetch(imageUrl);
+const imageUrl = `https://images.unsplash.com/photos/random?query=${queryKeywords}&w=${width}&h=${height}&fit=crop`;    const response = await fetch(imageUrl);
     
     if (!response.ok) {
       console.error(`External API Failed with Status: ${response.status}`);
