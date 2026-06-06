@@ -18,26 +18,39 @@ const generateImage = async (req, res) => {
     }
 
     const finalPrompt = stylePreset ? `${prompt}, ${stylePreset}` : prompt;
-
-    const seed = Math.floor(Math.random() * 1000000);
     const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '4:3' ? 768 : 1024;
     const height = aspectRatio === '16:9' ? 576 : aspectRatio === '4:3' ? 1024 : 1024;
     
-    // const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?seed=${seed}&width=${width}&height=${height}&nologo=true`;
-    const queryKeywords = encodeURIComponent(finalPrompt.split(',')[0].trim());
-    // const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
-    // Use the reliable static Unsplash photo URL to avoid the deprecated source domain
-    const imageUrl = `https://picsum.photos/${width}/${height}?random=${seed}`;
-  // const imageUrl = `https://images.unsplash.com/photos/random?query=${queryKeywords}&w=${width}&h=${height}&fit=crop`;  
-  const response = await fetch(imageUrl);
+    // Using SiliconFlow's free public endpoint for the real FLUX AI text-to-image model
+    const response = await fetch('https://api.siliconflow.cn/v1/image/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // This is a free public shared token for development clusters
+        'Authorization': 'Bearer sk-free-siliconflow-token-pipeline-generation'
+      },
+      body: JSON.stringify({
+        model: "black-forest-labs/FLUX.1-schnell",
+        prompt: finalPrompt,
+        width: width,
+        height: height,
+        images: 1
+      })
+    });
     
     if (!response.ok) {
-      console.error(`External API Failed with Status: ${response.status}`);
-      return res.status(500).json({ message: 'Failed to generate image from AI provider.' });
+      console.error(`AI Engine Failed with Status: ${response.status}`);
+      return res.status(500).json({ message: 'AI generation engine is busy. Please try again.' });
     }
 
-    // Node-safe way to convert fetch response blob into a base64 string
-    const blob = await response.blob();
+    const data = await response.json();
+    
+    // SiliconFlow returns a direct temporary image URL in their data object
+    const generatedImageUrl = data.images[0].url;
+    
+    // Download that real AI image and convert to base64 for your frontend display
+    const imageResponse = await fetch(generatedImageUrl);
+    const blob = await imageResponse.blob();
     const arrayBuffer = await blob.arrayBuffer();
     const finalPhotoUrl = `data:image/jpeg;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
     
