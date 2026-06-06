@@ -1,7 +1,7 @@
 const User = require('../models/User');
 
 const generateImage = async (req, res) => {
-  // 1. Explicitly enable CORS so your frontend can communicate with your backend
+  // 1. Unblock CORS for your frontend application
   res.setHeader('Access-Control-Allow-Origin', 'https://ai-image-generation-app-pi.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -26,28 +26,42 @@ const generateImage = async (req, res) => {
       return res.status(400).json({ message: 'Please provide a prompt' });
     }
 
-    // 2. Mix your prompt text with your chosen style preset
     const finalPrompt = stylePreset ? `${prompt}, ${stylePreset}` : prompt;
-    const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '4:3' ? 768 : 1024;
-    const height = aspectRatio === '16:9' ? 576 : aspectRatio === '4:3' ? 1024 : 1024;
     
-    // Clean up the text so the URL structure doesn't break
-    const queryKeywords = encodeURIComponent(finalPrompt.replace(/[^a-zA-Z0-9 ]/g, "").trim());
+    // Set up standard production image aspect ratios for Imagen 3
+    let aspectValue = "1:1";
+    if (aspectRatio === '16:9') aspectValue = "16:9";
+    if (aspectRatio === '4:3') aspectValue = "4:3";
     
-    // 3. Use the stable source stream matching your exact prompt query keyword
-    const imageUrl = `https://images.unsplash.com/photo-1579783902614-a3fb3927b6a5?q=80&w=${width}&h=${height}&auto=format&fit=crop&sig=${Math.floor(Math.random() * 1000)}&q=${queryKeywords}`;
+    // 2. Fetch directly from Google's official Imagen 3 generation model
+    // REPLACE YOUR_GEMINI_API_KEY_HERE with your key from Google AI Studio
+    const geminiKey = process.env.GEMINI_API_KEY || "AIzaSyD1dpSdte7g6KcvNer9xEqKQSh4PmKd11c";
     
-    const response = await fetch(imageUrl);
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${geminiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          numberOfImages: 1,
+          aspectRatio: aspectValue,
+          outputMimeType: "image/jpeg"
+        }),
+      }
+    );
     
     if (!response.ok) {
-      console.error(`API Failed with Status: ${response.status}`);
-      return res.status(500).json({ message: 'Generation server is busy. Please try again.' });
+      const errorText = await response.text();
+      console.error(`Gemini Engine Error: ${response.status} - ${errorText}`);
+      return res.status(500).json({ message: 'AI generation engine is busy. Please try again.' });
     }
 
-    // 4. Safely package the data stream into the base64 format your frontend wants
-    const blob = await response.blob();
-    const arrayBuffer = await blob.arrayBuffer();
-    const finalPhotoUrl = `data:image/jpeg;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
+    const data = await response.json();
+    
+    // 3. Extract the clean Base64 image chunk directly provided by Google
+    const rawBase64 = data.generatedImages[0].image.imageBytes;
+    const finalPhotoUrl = `data:image/jpeg;base64,${rawBase64}`;
     
     user.credits -= 1;
     await user.save();
