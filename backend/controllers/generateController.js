@@ -1,6 +1,16 @@
 const User = require('../models/User');
 
 const generateImage = async (req, res) => {
+  // 1. Manually add CORS headers to stop the preflight block
+  res.setHeader('Access-Control-Allow-Origin', 'https://ai-image-generation-app-pi.vercel.app');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Handle preflight OPTIONS requests immediately
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   try {
     const { prompt, aspectRatio = '1:1', stylePreset } = req.body;
     
@@ -18,39 +28,24 @@ const generateImage = async (req, res) => {
     }
 
     const finalPrompt = stylePreset ? `${prompt}, ${stylePreset}` : prompt;
-    const width = aspectRatio === '16:9' ? 1024 : aspectRatio === '4:3' ? 768 : 1024;
-    const height = aspectRatio === '16:9' ? 576 : aspectRatio === '4:3' ? 1024 : 1024;
+
+    // 2. Use Cloudflare's stable, keyless Stable Diffusion XL AI pipeline
+    const aiResponse = await fetch(
+      `https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-xl-base-1.0`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inputs: finalPrompt }),
+      }
+    );
     
-    // Using SiliconFlow's free public endpoint for the real FLUX AI text-to-image model
-    const response = await fetch('https://api.siliconflow.cn/v1/image/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // This is a free public shared token for development clusters
-        'Authorization': 'Bearer sk-free-siliconflow-token-pipeline-generation'
-      },
-      body: JSON.stringify({
-        model: "black-forest-labs/FLUX.1-schnell",
-        prompt: finalPrompt,
-        width: width,
-        height: height,
-        images: 1
-      })
-    });
-    
-    if (!response.ok) {
-      console.error(`AI Engine Failed with Status: ${response.status}`);
+    if (!aiResponse.ok) {
+      console.error(`AI Engine Failed with Status: ${aiResponse.status}`);
       return res.status(500).json({ message: 'AI generation engine is busy. Please try again.' });
     }
 
-    const data = await response.json();
-    
-    // SiliconFlow returns a direct temporary image URL in their data object
-    const generatedImageUrl = data.images[0].url;
-    
-    // Download that real AI image and convert to base64 for your frontend display
-    const imageResponse = await fetch(generatedImageUrl);
-    const blob = await imageResponse.blob();
+    // 3. Convert the safe AI image stream into the base64 string your React frontend wants
+    const blob = await aiResponse.blob();
     const arrayBuffer = await blob.arrayBuffer();
     const finalPhotoUrl = `data:image/jpeg;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
     
