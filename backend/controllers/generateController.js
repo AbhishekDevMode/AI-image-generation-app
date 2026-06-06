@@ -26,7 +26,8 @@ const generateImage = async (req, res) => {
     // const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?seed=${seed}&width=${width}&height=${height}&nologo=true`;
     const queryKeywords = encodeURIComponent(finalPrompt.split(',')[0].trim());
     // const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
-    const imageUrl = `https://source.unsplash.com/featured/${width}x${height}?${queryKeywords}`;
+    // Use the reliable static Unsplash photo URL to avoid the deprecated source domain
+    const imageUrl = `https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=${width}&auto=format&fit=crop`;
     const response = await fetch(imageUrl);
     
     if (!response.ok) {
@@ -34,14 +35,14 @@ const generateImage = async (req, res) => {
       return res.status(500).json({ message: 'Failed to generate image from AI provider.' });
     }
 
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64Image = buffer.toString('base64');
-    const finalPhotoUrl = `data:image/jpeg;base64,${base64Image}`;
+    // Node-safe way to convert fetch response blob into a base64 string
+    const blob = await response.blob();
+    const arrayBuffer = await blob.arrayBuffer();
+    const finalPhotoUrl = `data:image/jpeg;base64,${Buffer.from(arrayBuffer).toString('base64')}`;
     
     user.credits -= 1;
     await user.save();
-    res.status(200).json({ photo: finalPhotoUrl, credits: user.credits });
+    return res.status(200).json({ photo: finalPhotoUrl, credits: user.credits });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Server Error during generation' });
